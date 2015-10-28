@@ -90,6 +90,8 @@ import android.app.Dialog;
 import android.app.AlertDialog;
 
 import android.view.View.OnClickListener;
+import com.example.platypuscontrolapp.Joystick.*;
+
 
 public class TeleOpPanel extends Activity implements SensorEventListener {
     final Context context = this;
@@ -124,6 +126,10 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
     TextView sensorType3 = null;
 
     ToggleButton sensorvalueButton = null;
+    JoystickView joystick;
+
+
+
     boolean checktest;
     int a = 0;
 
@@ -153,9 +159,9 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
     int thrustCurrent;
     int rudderCurrent;
     double heading = Math.PI / 2.;
-    double rudderTemp = 50;
+    double rudderTemp = 0;
     double thrustTemp = 0;
-    double old_rudder=50;
+    double old_rudder=0;
     double old_thrust=0;
     double temp;
     double rot;
@@ -177,10 +183,10 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
     private float last_x, last_y, last_z;
     private static final int SHAKE_THRESHOLD = 600;
 
-    public static final double THRUST_MIN = 0.0;
+    public static final double THRUST_MIN = -1.0;
     public static final double THRUST_MAX = 1.0;
-    public static final double RUDDER_MIN = 1.0;
-    public static final double RUDDER_MAX = -1.0;
+    public static final double RUDDER_MIN = -1.0;
+    public static final double RUDDER_MAX = 1.0;
 
     public EditText ipAddress = null;
     public EditText color = null;
@@ -230,8 +236,8 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
         this.setContentView(R.layout.tabletlayout);
 
         ipAddressBox = (TextView) this.findViewById(R.id.printIpAddress);
-        thrust = (SeekBar) this.findViewById(R.id.thrustBar);
-        rudder = (SeekBar) this.findViewById(R.id.rudderBar);
+        //thrust = (SeekBar) this.findViewById(R.id.thrustBar);
+        //rudder = (SeekBar) this.findViewById(R.id.rudderBar);
         linlay = (RelativeLayout) this.findViewById(R.id.linlay);
         thrustProgress = (TextView) this.findViewById(R.id.getThrustProgress);
         rudderProgress = (TextView) this.findViewById(R.id.getRudderProgress);
@@ -253,9 +259,15 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
         sensorvalueButton = (ToggleButton) this.findViewById(R.id.SensorStart);
         sensorvalueButton.setClickable(sensorReady);
         sensorvalueButton.setTextColor(Color.GRAY);
-        sensorValueBox = (TextView) this.findViewById(R.id.SensorValue);
-        thrust.setProgress(0); //initially set thrust to 0
-        rudder.setProgress(50); //initially set rudder to center (50)
+      //  sensorValueBox = (TextView) this.findViewById(R.id.SensorValue);
+        //thrust.setProgress(0); //initially set thrust to 0
+        //rudder.setProgress(50); //initially set rudder to center (50)
+     // *****************//
+     //      Joystick   //
+     // ****************//
+        joystick = (JoystickView) findViewById(R.id.joystickView);
+        joystick.setYAxisInverted(false);
+
 
         senSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         senAccelerometer = senSensorManager
@@ -485,6 +497,31 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
 
 
     }
+
+    // *******************************
+    //  JoystickView listener
+    // *******************************
+    private JoystickMovedListener _listener = new JoystickMovedListener() {
+        @Override
+        public void OnMoved(int x, int y) {
+            thrustTemp = fromProgressToRange(y, THRUST_MIN, THRUST_MAX);
+            rudderTemp = fromProgressToRange(x, RUDDER_MIN,RUDDER_MAX);
+            Log.i(logTag,"Y:" + y + "\tX:" + x);
+            Log.i(logTag, "Thrust" + thrustTemp + "\t Rudder" + rudderTemp);
+
+        }
+
+        @Override
+        public void OnReleased() {
+
+        }
+
+        @Override
+        public void OnReturnedToCenter() {
+
+        }
+    };
+
     public void dialogClose()
     {
         if (getBoatType() == true) {
@@ -586,8 +623,8 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
     public void onPause() {
         super.onPause();
         // turns the thrust and rudder off when you pause the activity
-        thrust.setProgress(0);
-        rudder.setProgress(50);
+       // thrust.setProgress(0);
+        //rudder.setProgress(50);
         //networkThread.cancel(true);
     }
 
@@ -624,16 +661,14 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
         // rudder.getProgress());
         if (a.returnServer() != null) {
             //Twist twist = new Twist();
-            twist.dx(fromProgressToRange(thrust.getProgress(), THRUST_MIN,
-                    THRUST_MAX));
-            if (Math.abs((fromProgressToRange(rudder.getProgress(), RUDDER_MIN, RUDDER_MAX)) - 0) < .05) {
-                tempThrustValue = 50;
+            twist.dx(thrustTemp >= -1 & thrustTemp <= 1 ? thrustTemp : 0);
+            if (Math.abs(rudderTemp - 0) < .05) {
+                tempThrustValue = 0;
                 twist.drz(fromProgressToRange((int) tempThrustValue, RUDDER_MIN,
                         RUDDER_MAX));
 
             } else {
-                twist.drz(fromProgressToRange(rudder.getProgress(), RUDDER_MIN,
-                        RUDDER_MAX));
+                twist.drz(rudderTemp >= -1 & rudderTemp <= 1 ? rudderTemp : 0);
             }
             a.returnServer().setVelocity(twist, null);
         }
@@ -708,7 +743,7 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
             currentBoat.returnServer().getNumSensors(new FunctionObserver<Integer>() {
                 @Override
                 public void completed(Integer num) {
-                    Log.i(logTag,"Sensor Number:"+ Integer.toString(num));
+                    Log.i(logTag, "Sensor Number:" + Integer.toString(num));
                     for (channel = 0; channel < num; channel++) {
                         currentBoat.returnServer().addSensorListener(channel, sensorListener, null);
                     }
@@ -719,6 +754,8 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
 
                 }
             });
+
+
             // setVelListener();
             // InitSensorData();
             while (true) { //constantly looping
@@ -826,7 +863,7 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
             sensorvalueButton.setText("Show SensorData");
 
             if (sensorvalueButton.isChecked()) {
-                sensorValueBox.setBackgroundColor(Color.GREEN);
+              //  sensorValueBox.setBackgroundColor(Color.GREEN);
                 switch (Data.channel) {
                     case 1:
                         sensorData1.setText(sensorV);
@@ -852,7 +889,7 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
                 sensorData1.setText("----");
                 sensorData2.setText("----");
                 sensorData3.setText("----");
-                sensorValueBox.setBackgroundColor(Color.DKGRAY);
+                //sensorValueBox.setBackgroundColor(Color.DKGRAY);
             }
         }
         else{
@@ -861,10 +898,15 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
             sensorData2.setText("----");
             sensorData3.setText("----");
         }
+//********************************//
+// Adding Joystick move listener//
+// ******************************//
+        joystick.setOnJostickMovedListener(_listener);
+
         DecimalFormat velFormatter = new DecimalFormat("####.###");
 
-        thrustTemp = fromProgressToRange(thrust.getProgress(), THRUST_MIN, THRUST_MAX);
-        rudderTemp = fromProgressToRange(rudder.getProgress(), RUDDER_MIN, RUDDER_MAX);
+        //thrustTemp = fromProgressToRange(thrust.getProgress(), THRUST_MIN, THRUST_MAX);
+       // rudderTemp = fromProgressToRange(rudder.getProgress(), RUDDER_MIN, RUDDER_MAX);
         thrustProgress.setText(velFormatter.format(thrustTemp * 100.0) + "%");
         rudderProgress.setText(velFormatter.format(rudderTemp * 100.0) + "%");
 
@@ -924,13 +966,13 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
     // Converts from progress bar value to linear scaling between min and
 // max
     private double fromProgressToRange(int progress, double min, double max) {
-        return (min + (max - min) * ((double) progress) / 100.0);
+        return ((max - min) * ((double) progress) / 20.0);
     }
 
     // Converts from progress bar value to linear scaling between min and
 // max
     private int fromRangeToProgress(double value, double min, double max) {
-        return (int) (100.0 * (value - min) / (max - min));
+        return (int) (20.0 * (value ) / (max - min));
     }
 
     /* accelerometer controls */
@@ -966,7 +1008,7 @@ public class TeleOpPanel extends Activity implements SensorEventListener {
                     // test.setText("x: " + last_x + "y: " + last_y + "z: "
                     // + last_z);
 
-                    updateViaAcceleration(last_x, last_y, last_z);
+                    //updateViaAcceleration(last_x, last_y, last_z);
                 }
             }
         }
